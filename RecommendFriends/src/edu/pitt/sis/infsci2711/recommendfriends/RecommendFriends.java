@@ -67,23 +67,22 @@ public class RecommendFriends extends Configured implements Tool {
 		@Override
 		public void map(LongWritable key, Text value, Context context)
 		throws IOException, InterruptedException {
-		String line[] = value.toString().split("\t");
-		String user = line[0];
-		if(line.length == 2) {
-			for (String friend: line[1].trim().split(",")) {
-				if(friend.isEmpty()) continue;
-				word.set(user);
-				context.write(word, new FriendCountWritable(Long.valueOf(friend),-1L));
-				for (String friend2: line[1].trim().split(",")) {
-					if(!friend.equals(friend2)) {
-						if(friend2.isEmpty()) continue;
-						word.set(friend);
-						context.write(word,  new FriendCountWritable(Long.valueOf(friend2),1L));
+			String line[] = value.toString().split("\t");
+			String user = line[0];
+			if(line.length == 2) {
+				for (String friend: line[1].trim().split(",")) {
+					if(friend.isEmpty()) continue;
+					word.set(user);
+					context.write(word, new FriendCountWritable(Long.valueOf(friend),-1L));
+					for (String friend2: line[1].trim().split(",")) {
+						if(!friend.equals(friend2)) {
+							if(friend2.isEmpty()) continue;
+							word.set(friend);
+							context.write(word,  new FriendCountWritable(Long.valueOf(friend2),1L));
+						}
 					}
-				}
-			}   	  
-		}
-
+				}   	  
+			}
 		}
 	}
 
@@ -91,41 +90,41 @@ public class RecommendFriends extends Configured implements Tool {
 		@Override
 		public void reduce(Text key, Iterable<FriendCountWritable> values, Context context)
 		throws IOException, InterruptedException {
-		String recommendations = "";
-		HashMap<Long, Long> recommendFriends = new HashMap<Long, Long>();
-		for (FriendCountWritable val : values) {
-			//sum += val.get();
-			if(recommendFriends.containsKey(val.user)) {
-				if(recommendFriends.get(val.user) == -1L) {
-					continue;
+			String recommendations = "";
+			HashMap<Long, Long> recommendFriends = new HashMap<Long, Long>();
+			for (FriendCountWritable val : values) {
+				//sum += val.get();
+				if(recommendFriends.containsKey(val.user)) {
+					if(recommendFriends.get(val.user) == -1L) {
+						continue;
+					}
+					else{
+						recommendFriends.put(val.user, recommendFriends.get(val.user) + val.count);
+					}
 				}
 				else{
-					recommendFriends.put(val.user, recommendFriends.get(val.user) + val.count);
+					recommendFriends.put(val.user, val.count);
 				}
 			}
-			else{
-				recommendFriends.put(val.user, val.count);
+			ValueComparator bvc =  new ValueComparator(recommendFriends);
+			TreeMap<Long, Long> sortedMap = new TreeMap<Long, Long>(bvc);
+			sortedMap.putAll(recommendFriends);
+			int i = 0;
+			System.out.println(sortedMap);
+			for(java.util.Map.Entry<Long,Long> entry : sortedMap.entrySet()) {
+				Long key_data = entry.getKey();
+				Long value = entry.getValue();
+				if(value==-1L)
+					break;
+				if(recommendations == "")
+					recommendations = String.valueOf(key_data);
+				else
+					recommendations = recommendations + "," + String.valueOf(key_data); 
+				i = i + 1;
+				if(i>=10)
+					break;
 			}
-		}
-		ValueComparator bvc =  new ValueComparator(recommendFriends);
-		TreeMap<Long, Long> sortedMap = new TreeMap<Long, Long>(bvc);
-		sortedMap.putAll(recommendFriends);
-		int i = 0;
-		System.out.println(sortedMap);
-		for(java.util.Map.Entry<Long,Long> entry : sortedMap.entrySet()) {
-			Long key_data = entry.getKey();
-			Long value = entry.getValue();
-			if(value==-1L)
-				break;
-			if(recommendations == "")
-				recommendations = String.valueOf(key_data);
-			else
-				recommendations = recommendations + "," + String.valueOf(key_data); 
-			i = i + 1;
-			if(i>=10)
-				break;
-		}
-		context.write(key, new Text(recommendations));
+			context.write(key, new Text(recommendations));
 		}
 	}
 
@@ -167,7 +166,6 @@ public class RecommendFriends extends Configured implements Tool {
 			this.base = base;
 		}
 
-		// Note: this comparator imposes orderings that are inconsistent with equals.    
 		public int compare(Long a, Long b) {
 			if (base.get(a) > base.get(b)) {
 				return -1;
@@ -177,10 +175,9 @@ public class RecommendFriends extends Configured implements Tool {
 					return -1;
 				else
 					return 1;
-
 			} else {
 				return 1;
-			} // returning 0 would merge keys
+			} 
 		}
 	}
 }
